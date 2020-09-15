@@ -1,0 +1,192 @@
+
+################################################
+# -2. define some custom functions
+################################################
+
+drop_fixed_and_NA_columns <- function(mydataframe) {
+
+	for ( i in colnames(mydataframe) ) {
+	
+		if ( is.na( mydataframe[, i] ) ) {
+			mydataframe <- mydataframe[ , !colnames(mydataframe)==i]
+		} else {
+			myvar <- var( mydataframe[, i] )
+			if (myvar == 0) {
+				mydataframe <- mydataframe[ , !colnames(mydataframe)==i]
+			}
+		}
+	}
+	return(mydataframe)
+}
+
+factors_to_characters <- function(mydf) {
+	mydf[sapply(mydf, is.factor)] <- lapply(mydf[sapply(mydf, is.factor)], as.character)
+	return(mydf)
+}
+
+
+find_near_zero_variance_columns <- function(mydataframe) {
+	
+	# because lda.default() refuses to work with data that has < 1e-07 variance (tol)
+	# but lda are useful predictors and we want them
+	
+	bad_columns = c()
+	for ( i in seq(1, ncol(mydataframe) ) ) {
+		if ( var( mydataframe[,i] ) < 1e-07 ) {
+			bad_columns <- append(bad_columns, i)
+			}
+		}
+#	print(bad_columns)
+	return(bad_columns)
+	}
+
+find_na_rows <- function(mydataframe) {
+	
+	# because some rows of summary statistics contain NA and need to be dropped, we need to drop the corresponding row from the parameters data.frame as well:
+	
+	bad_rows = row.names(mydataframe[complete.cases(mydataframe) == FALSE,])
+
+	return(bad_rows)
+	}
+
+
+
+################################################
+# -1. load dependencies
+################################################
+
+library(abc)
+library(ggplot2)
+library(data.table)
+
+args = commandArgs(trailingOnly=TRUE)
+sim.ABCstat.file <- args[1]
+sim.params.file <- args[2]
+obs.ABCstat.file <- args[3]
+outf_prefix <- args[4] # e.g. "Brunei_hemsleyana_mirabilis.DGF"
+
+################################################
+# 0. import observed statistics, simulated statistics, simulation parameters
+################################################
+
+raw_summary_statistics <- fread(sim.ABCstat.file, data.table = FALSE, na.strings="na")
+
+bad_rows <- find_na_rows(raw_summary_statistics)
+
+raw_summary_statistics = raw_summary_statistics[ !(row.names(raw_summary_statistics) %in% bad_rows), ]
+
+
+
+# drop near zero-variance stats:
+tb_dropped_columns <- find_near_zero_variance_columns(raw_summary_statistics)
+if ( ! is.null(tb_dropped_columns) ) {
+raw_summary_statistics <- subset(raw_summary_statistics, select = -tb_dropped_columns)
+}
+
+raw_summary_statistics.obs <- fread(obs.ABCstat.file, data.table = FALSE, na.strings="na")
+# drop the same near zero-variance stats:
+if ( ! is.null(tb_dropped_columns) ) {
+raw_summary_statistics.obs <- subset(raw_summary_statistics.obs, select = -tb_dropped_columns)
+}
+
+
+model_parameters <- fread(sim.params.file, data.table = FALSE, na.strings="NA")
+
+# drop nuisance_parameters:
+#nuisance_params = c(N1_recent,	N2_recent,	N1_ancient,	N2_ancient,	Nghost,	Nanc12,	Nanc12ghost, T_N1_ancient,	T_N2_ancient, T_m_ghost_start,	T_m_ghost_stop, m1ghost_scale,	m2ghost_scale,	m12beta1,	m12beta2,	m21beta1,	m21beta2,	m1ghostbeta1	m1ghostbeta2,	m2ghostbeta1,	m2ghostbeta2,	m1ghost_prop_mig,	m2ghost_prop_mig )
+
+clean_model_parameters <- subset(model_parameters, select = -c(N1_ancient, N2_ancient, N3_ancient) )
+
+#print(names(clean_model_parameters))
+
+clean_model_parameters <- drop_fixed_and_NA_columns(clean_model_parameters)
+#clean_model_parameters <- drop_fixed_and_NA_columns(model_parameters)
+
+# drop also the bad rows (i.e. paramters whose summary stats contained NA values)
+clean_model_parameters = clean_model_parameters[ !(row.names(clean_model_parameters) %in% bad_rows), ]
+
+print(names(clean_model_parameters))
+
+
+################################################
+# 1. estimate parameters using ALL summary statistics
+################################################
+
+# complaines about "too many weights" if sizenet = 10; so gor for default (sizenet = 5). Solution: set MaxNWts higher!
+pe <- abc(raw_summary_statistics.obs , clean_model_parameters, raw_summary_statistics, tol = .01 , method = "neuralnet", hcorr = TRUE, transf="log", numnet = 50, sizenet = 10, MaxNWts = 10000)
+#pe <- abc(raw_summary_statistics.obs , clean_model_parameters, raw_summary_statistics, tol = .01 , method = "neuralnet", hcorr = TRUE, transf="log", numnet = 5, sizenet = 5, MaxNWts = 10000)
+
+mysummary <- summary(pe)
+
+write.table(mysummary, file = paste(outf_prefix, ".abc_nnet.PE_tol0.01_logtransf_neuralnet_n50.txt", sep = ""), append = FALSE, quote = FALSE, sep = "\t",
+            eol = "\n", na = "NA", dec = ".", row.names = TRUE,
+            col.names = TRUE)
+
+###
+
+# plot distributions
+posteriors_rej <- pe$unadj.values
+posteriors_rej <- as.data.frame( cbind("posterior_rej", posteriors_rej) )
+colnames(posteriors_rej)[1] <- "distribution"
+
+posteriors_othermethod <- pe$adj.values
+posteriors_othermethod <- as.data.frame( cbind("posterior_neuralnet", posteriors_othermethod) )
+colnames(posteriors_othermethod)[1] <- "distribution"
+
+priors <- clean_model_parameters[ sample(1:nrow( clean_model_parameters ), nrow(  pe$unadj.values ) , replace=FALSE), ]
+priors <- cbind("prior", priors)
+colnames(priors)[1] <- "distribution"
+
+posteriors_rej <- factors_to_characters(posteriors_rej)
+posteriors_othermethod  <- factors_to_characters(posteriors_othermethod )
+priors <- factors_to_characters(priors)
+
+prior_posterior_df <- rbind(posteriors_rej, posteriors_othermethod, priors)
+#prior_posterior_df <- rbind(posteriors_rej, priors)
+prior_posterior_df <- data.frame(prior_posterior_df, row.names=NULL)
+
+prior_posterior_df$distribution <- as.factor(prior_posterior_df$distribution)
+
+distribution_index <- prior_posterior_df[1]
+prior_posterior_df <- prior_posterior_df[ -1 ]
+
+
+pdf(paste(outf_prefix, ".abc_nnet.histograms_posteriors_vs_priors.pdf", sep = ""))
+
+for (stat in colnames(prior_posterior_df) ) {
+
+mydat <- data.frame(distribution_index, as.numeric( prior_posterior_df[[stat]] ) )
+
+histplot <- ggplot(mydat, aes( x = mydat[,2] , fill = distribution )) + geom_histogram(alpha = 0.6, aes(y = ..density..), position = 'identity', binwidth = (max(mydat[,2])-min(mydat[,2]))/40) + xlab( stat )
+
+plot(histplot)
+
+} 
+dev.off()
+
+#######
+# export posterior distributions to a file! For use in downstream analyses (e.g. further simulations, posterior-rpedictive checks etc)
+#######
+posteriors_othermethod_df <- data.frame(posteriors_othermethod, row.names=NULL)
+write.table(posteriors_othermethod_df, file = paste(outf_prefix, ".abc_nnet.posterior_distributions.txt", sep = ""), append = FALSE, quote = FALSE, sep = "\t",
+            eol = "\n", na = "NA", dec = ".", row.names = FALSE,
+            col.names = TRUE)
+
+
+
+## cross-validation error:
+cv_error <- cv4abc(clean_model_parameters, raw_summary_statistics, tol = .01 , method = "neuralnet", hcorr = TRUE, transf="log", numnet = 50, sizenet = 10, MaxNWts = 10000, nval = 10)
+cv_summary <- summary(cv_error)
+
+write.table('cross-validation error, cv4abc, tol = .01 , method = "neuralnet", hcorr = TRUE, transf="log", numnet = 50, sizenet = 10, MaxNWts = 10000, nval = 100', file = paste(outf_prefix, ".abc_nnet.PE_tol0.01_logtransf_neuralnet_n50.txt", sep = ""), append = TRUE, quote = FALSE, sep = "\t",
+            eol = "\n", na = "NA", dec = ".", row.names = TRUE,
+            col.names = TRUE)
+
+write.table(cv_summary, file = paste(outf_prefix, ".abc_nnet.PE_tol0.01_logtransf_neuralnet_n50.txt", sep = ""), append = TRUE, quote = FALSE, sep = "\t",
+            eol = "\n", na = "NA", dec = ".", row.names = TRUE,
+            col.names = TRUE)
+
+pdf( paste(outf_prefix, ".abc_nnet.cross-validation_error.pdf", sep = "") )
+plot(cv_error)
+dev.off()
+

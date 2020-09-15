@@ -1,0 +1,6 @@
+sample1	pop_one
+sample2	pop_one
+sample3	pop_two
+sample4	pop_two
+sample5	pop_three
+sample6	pop_three

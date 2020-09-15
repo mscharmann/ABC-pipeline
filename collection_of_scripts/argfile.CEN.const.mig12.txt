@@ -1,0 +1,77 @@
+## argfile.CEN.const.mig12.txt
+# start and stop of migration are both set = 0 => no migration at all
+
+# special flags that are allowed:
+# T_m_stop = T_merge_2_into_1 # to fix the stop (in rev time; in fwd time: start) of m12 and m21 to the time of their speciation
+
+## NUMBER OF ITERATIONS
+nreps = 100000
+
+
+## POPULATION SIZES
+# popsize_parameter = desired_popsize / Ne(0) # Ne(0) is a scaling constant that we assume to be 100,000
+# recent = most recent phase, has exponential growth from ancient size to this recent size; ancient = the phase before that, is constant
+# N_priors_shape must be one of 'flat' or 'lognormal'. It applies to ALL population size priors.
+# If lognormal, one has to specify additional arguments 'N_mode_of_lognormal' AND 'N_sigma'.
+# Lognormal distributions will be truncated within lower,upper just as the flat distributions.
+# all Ni_ancient can indepdentently be set to: a free range OR "N[i]_recent" OR "larger_than_recent" OR "smaller_than_recent"
+
+N_priors_shape = lognormal
+N_mode_of_lognormal = 0.1
+N_sigma = 1.5
+
+N1_recent = 0.0001,5.0
+N2_recent = 0.0001,5.0
+
+N1_ancient = N1_recent
+N2_ancient = N2_recent
+
+Nanc12 = 0.0001,5.0
+
+N_prop_hetero = 0,0
+N_hetero_beta1 = 0.1,10
+N_hetero_beta2 = 0.1,10
+
+## TIME PARAMETERS: bear in mind that the direction of time is pastward, i.e. 0=present and >0 is further in the past! 
+# thus the meaning of start and stop is reversed from common sense.
+# larger values mean deeper back in time, longer ago
+# T_parameter = T(generations)/4*Ne(0) # Ne(0) is a scaling constant that we assume to be 100,000
+# my definition of generation time: average age of mothers at birth of their daughters -> estimate this at 20 years, (regardless of the shape of the reproduction-age distribution, 
+# over many generations only the average should be relevant) -> T(10.000.000 years) = 500.000 -> tau = 1.25; 100 generations = 0.00025 T-units
+# all T_mij_stop parameter CAN be set to T_merge_2_into_1
+T_m12_start = 0.0,10
+T_m12_stop = 0.0,10
+T_m21_start = 0.0,0
+T_m21_stop = 0.0,0
+
+T_merge_2_into_1 = 1,1
+
+# the time when population sizes enter from recent phase into the ancient phase. (Obviously) truncated by T_merge_2_into_1.
+T_N1_ancient = 0.0,0.0
+T_N2_ancient = 0.0,0.0
+
+
+## MIGRATION RATES: tested the Fst, netdiv vs. migration rate (homogenous): Panmixia-like outcomes (netdiv scattered around 0) are achieved at c. m >= 50; this holds for 
+# an extreme range of N and T values . m = 50 => proporion of migrants per generation = 0.000125
+# m_parameter_into_x = ( 4*N(0) * Nx ) * m ; m is the fraction of a population which is replaced by migrants in each generation
+m12_scale = 1,50
+m21_scale = 0,0
+
+## MIGRATION SHAPE: one of 'homogenous', 'heterogenous_beta' or 'heterogenous_binomial'
+# homogenous: 				all loci have the same migration rate given by m_scale; beta-parameters and prob_mig parameters are ignored
+# heterogenous_beta: 		per-locus migration rate is drawn from beta-distribution with parameters beta1 & beta2, then scaled by m_scale; prob_mig parameters are ignored
+# heterogenous_binomial: 	two classes of migration rates among loci: migration rate is either zero or m_scale with probability prop_mig; beta-parameters are ignored
+migration_shape = homogenous
+
+# m_prop_mig parameters: proportion of loci having migration > 0 (i.e. m_scale); must be between 0 and 1
+m12_prop_mig = 1,1
+m21_prop_mig = 1,1
+
+# parameters of beta-distrib.: among loci heterogenous migration rate
+m12beta1 = 0.1,10
+m12beta2 = 0.1,10
+m21beta1 = 0.1,10
+m21beta2 = 0.1,10
+
+
+

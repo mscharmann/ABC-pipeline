@@ -1,0 +1,1 @@
+Rscript Rscript_param_estim_Dianthus_exponential_growth.txt ABCstat.Dianthus_exponential_growth.120k.txt parameters.Dianthus_exponential_growth.120k.txt Dianthus.sylvestris_vs_threespecies.minpres0.8.2018-02-12.vcf.recode.vcf.ABCstat.txt param_estim_results.Dianthus_exponential_growth

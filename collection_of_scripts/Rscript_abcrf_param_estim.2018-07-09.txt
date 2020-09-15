@@ -1,0 +1,176 @@
+
+################################################
+# -2. define some custom functions
+################################################
+
+drop_fixed_and_NA_columns <- function(mydataframe) {
+
+	for ( i in colnames(mydataframe) ) {
+	
+		if ( is.na( mydataframe[, i] ) ) {
+			mydataframe <- mydataframe[ , !colnames(mydataframe)==i]
+		} else {
+			myvar <- var( mydataframe[, i] )
+			if (myvar == 0) {
+				mydataframe <- mydataframe[ , !colnames(mydataframe)==i]
+			}
+		}
+	}
+	return(mydataframe)
+}
+
+factors_to_characters <- function(mydf) {
+	mydf[sapply(mydf, is.factor)] <- lapply(mydf[sapply(mydf, is.factor)], as.character)
+	return(mydf)
+}
+
+
+find_near_zero_variance_columns <- function(mydataframe) {
+	
+	# because lda.default() refuses to work with data that has < 1e-07 variance (tol)
+	# but lda are useful predictors and we want them
+	
+	bad_columns = c()
+	for ( i in seq(1, ncol(mydataframe) ) ) {
+		if ( var( mydataframe[,i] ) < 1e-07 ) {
+			bad_columns <- append(bad_columns, i)
+			}
+		}
+#	print(bad_columns)
+	return(bad_columns)
+	}
+
+find_na_rows <- function(mydataframe) {
+	
+	# because some rows of summary statistics contain NA and need to be dropped, we need to drop the corresponding row from the parameters data.frame as well:
+	
+	bad_rows = row.names(mydataframe[complete.cases(mydataframe) == FALSE,])
+
+	return(bad_rows)
+	}
+
+
+
+################################################
+# -1. load dependencies
+################################################
+
+library(abcrf)
+library(ggplot2)
+library(data.table)
+
+args = commandArgs(trailingOnly=TRUE)
+
+#args = c("ABCstat.2_into_3__anc23_into_1.txt", "parameters.2_into_3__anc23_into_1.txt", "Cochlearia.inputFormat.noExcessiveContigs.2018-04-10.vcf.gz.ARC_EUR_TRI.ABCstat.txt", "TEST.2_into_3__anc23_into_1.30k")
+
+sim.ABCstat.file <- args[1] 
+sim.params.file <- args[2]
+obs.ABCstat.file <- args[3]
+outf_prefix <- args[4] # e.g. "Brunei_hemsleyana_mirabilis.DGF"
+
+################################################
+# 0. import observed statistics, simulated statistics, simulation parameters
+################################################
+
+raw_summary_statistics <- fread(sim.ABCstat.file, data.table = FALSE, na.strings="na")
+
+
+bad_rows <- find_na_rows(raw_summary_statistics)
+
+raw_summary_statistics = raw_summary_statistics[ !(row.names(raw_summary_statistics) %in% bad_rows), ]
+
+
+
+# drop near zero-variance stats:
+tb_dropped_columns <- find_near_zero_variance_columns(raw_summary_statistics)
+if ( ! is.null(tb_dropped_columns) ) {
+raw_summary_statistics <- subset(raw_summary_statistics, select = -tb_dropped_columns)
+}
+
+raw_summary_statistics.obs <- fread(obs.ABCstat.file, data.table = FALSE, na.strings="na")
+# drop the same near zero-variance stats:
+if ( ! is.null(tb_dropped_columns) ) {
+raw_summary_statistics.obs <- subset(raw_summary_statistics.obs, select = -tb_dropped_columns)
+}
+
+
+model_parameters <- fread(sim.params.file, data.table = FALSE, na.strings="NA")
+
+# drop nuisance_parameters:
+#nuisance_params = c(N1_recent,	N2_recent,	N1_ancient,	N2_ancient,	Nghost,	Nanc12,	Nanc12ghost, T_N1_ancient,	T_N2_ancient, T_m_ghost_start,	T_m_ghost_stop, m1ghost_scale,	m2ghost_scale,	m12beta1,	m12beta2,	m21beta1,	m21beta2,	m1ghostbeta1	m1ghostbeta2,	m2ghostbeta1,	m2ghostbeta2,	m1ghost_prop_mig,	m2ghost_prop_mig )
+
+clean_model_parameters <- subset(model_parameters, select = -c(N1_ancient, N2_ancient, N3_ancient) )
+
+#print(names(clean_model_parameters))
+
+clean_model_parameters <- drop_fixed_and_NA_columns(clean_model_parameters)
+#clean_model_parameters <- drop_fixed_and_NA_columns(model_parameters)
+
+# drop also the bad rows (i.e. paramters whose summary stats contained NA values)
+clean_model_parameters = clean_model_parameters[ !(row.names(clean_model_parameters) %in% bad_rows), ]
+
+print(names(clean_model_parameters))
+
+################################################
+# 1. estimate parameters using ALL summary statistics
+################################################
+
+
+
+## ODOF = One Dimension, One Forest = separate RF regression for each parameter, NOT jointly estimated!
+
+collector <- c()
+
+pdf(paste(outf_prefix, ".regression_RF.pdf", sep = ""))
+
+for (i in seq(1, ncol(clean_model_parameters))) {
+print(names(clean_model_parameters)[i])
+
+fu <- raw_summary_statistics
+
+names(fu) <- paste("P", names(fu), sep=".")
+
+data <- cbind(clean_model_parameters[,i], fu)
+names(data) <- c("myparam", names(fu))
+
+my_model <- regAbcrf(formula = myparam~., data = data, ntree = 1000, min.node.size = 5, paral = TRUE, ncores = 12)
+
+errorOOB <- err.regAbcrf(object = my_model, training = data,paral = TRUE, ncores = 12)
+my_errorOOB = errorOOB[length(errorOOB)]
+title( main = names(clean_model_parameters)[i] ) 
+
+plot(x = my_model, n.var = 25)
+title( main = names(clean_model_parameters)[i] ) 
+
+colnames(raw_summary_statistics.obs) <- colnames(data[ ,-1])
+# Prediction is complete by
+pred <- predict(object = my_model, obs = raw_summary_statistics.obs,
+training = data, quantiles = c(0.025,0.975),
+paral = TRUE, ncores = 12)
+
+par(col.main="#00000000") # Switch title color to transparent.
+par(col.lab="#00000000") # Switch lable color to transparent.
+densityPlot(object = my_model, obs = raw_summary_statistics.obs, training = data, paral = TRUE, ncores = 12)
+par(col.main='black') # Switch title color back to black.
+par(col.lab='black') # Switch lable color back to black.
+title( main = names(clean_model_parameters)[i] , xlab = "value", ylab = "density") 
+legend("topright", legend=c("prior", "posterior"),
+       col=c("grey", "black"), lty=1, cex=0.8)
+
+a <- c(pred$expectation, pred$med, pred$variance, pred$variance.cdf, pred$quantiles[1], pred$quantiles[2], my_errorOOB)
+collector <- cbind(collector, a)
+}
+
+dev.off()
+
+colnames(collector) <- colnames(clean_model_parameters)
+rownames(collector) <- c("expectation",  "median","variance","variance.cdf","quantile= 0.025","quantile= 0.975", "errorOOB")
+
+
+write.table(collector, file = paste(outf_prefix, ".regression_RF.txt", sep = ""), append = FALSE, quote = FALSE, sep = "\t",
+            eol = "\n", na = "NA", dec = ".", row.names = TRUE,
+            col.names = TRUE)
+
+
+#########
+

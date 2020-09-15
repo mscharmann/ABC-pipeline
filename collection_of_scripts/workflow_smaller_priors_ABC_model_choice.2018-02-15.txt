@@ -1,0 +1,65 @@
+############### ###############  ###############
+# 4. step: ABC model choice using RF
+############### ###############  ###############
+
+cd /cluster/project/gdc/people/schamath/Dianthus_CEN_introgression_test/ABC_smaller_priors_model_choice_RAD_data
+
+ln -s ../ABC_sims_smaller_priors/ABCstat.* ./
+ln -s ../ABC_sims_smaller_priors/parameters.* ./
+
+# get also the obs data:
+cp ../observed_data/Dianthus.sylvestris_vs_threespecies.minpres0.8.2018-02-12.vcf.recode.vcf.ABCstat.txt ./
+
+###### get Rscript etc.
+
+cp ../ABC_model_choice_RAD_data/Rscript_RF_classification.Dianthus_RAD_data.2018-02-13.txt ./Rscript_RF_classification.Dianthus_RAD_data.2018-02-15.txt
+
+## modified as desired:
+Rscript_RF_classification.Dianthus_RAD_data.2018-02-15.txt
+
+############
+# add R executables to PATH variable:
+PATH=$PATH:/cluster/project/gdc/people/schamath/tools/R-3.2.5/bin
+
+# install modified version of abcrf:
+#open R
+install.packages("/cluster/project/gdc/people/schamath/tools/abcrf_mod_for_specific_paral_NCORES.tar.gz", repos=NULL)
+q()
+
+### testrun with smaller RFs:
+Rscript Rscript_RF_classification.Dianthus_RAD_data.2018-02-15.txt
+# OK it runs through!
+
+### now run the real script with longer time:
+
+
+echo "Rscript Rscript_RF_classification.Dianthus_RAD_data.2018-02-15.txt" > modelchoice.sh
+
+bsub -J "modelchoice" -W 8:0 -n 4 -R "rusage[mem=4000]" -R "rusage[scratch=1048]" < modelchoice.sh
+
+
+######### RESULT:
+[1] "info on the Random Forest:"
+
+Call:
+ abcrf(modindex = modelindex, sumsta = all_sumstats_nomodel, lda = TRUE,      ntree = 1000, sampsize = min(10^5, length(modelindex)), paral = TRUE,      NCORES = 4) 
+includes the axes of a preliminary LDA
+
+Number of simulations: 119947
+     Prior error rate: 20.6016%
+
+Confusion matrix:
+                                 1     2     3 class.error
+Dianthus_exponential_decline 32213   931  6255  0.18239042
+Dianthus_exponential_growth    392 31587  2299  0.07850516
+Dianthus_singlephase          7401  7433 31436  0.32059650
+[1] "#########################"
+[1] "result of classification:"
+                     contrast            RF_majority_vote         post.prob Bayes_factor_of_best_model
+                       global Dianthus_exponential_growth 0.809233333333333                         NA
+ Dianthus_exponential_decline Dianthus_exponential_growth           0.93035           13.3575017946877
+         Dianthus_singlephase Dianthus_exponential_growth 0.800483333333333            4.0121126054632
+
+
+=>> Dianthus_exponential_growth is very clearly the best of these three models!
+

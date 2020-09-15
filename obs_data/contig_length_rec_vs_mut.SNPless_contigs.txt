@@ -1,0 +1,11 @@
+contig_name	recombination_contig_length	mutation_contig_length
+contig1	100	21
+contig2	200	39
+contig3	100	25
+contig4	500	112
+contig5	345	150
+contig6	350	178
+contig7	346	132
+contig8	320	10
+contig9	210	86
+contig10	3100	500
