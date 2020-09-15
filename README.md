@@ -25,7 +25,19 @@ install conda / bioconda
 make a conda environment that contains snakemake, numpy and scipy
 
 ```
+git clone https://github.com/mscharmann/ABC-pipeline
+
+cd ABC-pipeline
+
 conda env create --file ABC_sims.yml
+
+conda activate ABC_sims
+
+snakemake --cores 10
+
+# conda deactivate
+# conda remove --name ABC_sims --all
+
 ```
 
 ### Inputs
