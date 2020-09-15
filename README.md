@@ -39,7 +39,7 @@ snakemake --cores 10
 # snakemake --cluster "sbatch" --jobs 100
 
 ## on LSF cluster can do:
-# snakemake --cluster "sbatch" --jobs 100
+# snakemake --cluster "bsub" --jobs 100
 
 ## remove the conda environment
 # conda deactivate
