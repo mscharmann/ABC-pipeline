@@ -32,14 +32,28 @@ cd ABC-pipeline
 conda env create --file ABC_sims.yml
 
 conda activate ABC_sims
+```
 
+the pipeline can then be run locally:
+```
 snakemake --cores 10
+```
 
-## on SLURM cluster can do:
-# snakemake --cluster "sbatch" --jobs 100
+on SLURM cluster can do:
+```
+snakemake --cluster "sbatch" --jobs 100
+```
 
-## on LSF cluster can do:
-# snakemake --cluster "bsub" --jobs 100
+on LSF cluster can do:
+```
+snakemake --cluster 'bsub -W 4:0 -R "rusage[mem=1000]"' --jobs 100
+```
+
+or else on LSF better submit a master job for snakemake, named snake.sh and containing the command above, and then submit:
+```
+bsub -J "master" -W 12:0 -n 1 -R "rusage[mem=2000]" -M 48000000 < snake.sh
+```
+
 
 ## remove the conda environment
 # conda deactivate
