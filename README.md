@@ -17,34 +17,35 @@ This is a workflow and collection of scripts to estimate the demographic history
 # Example Workflow & Tutorial
 
 ## 0. installation / satisfy dependencies
-clone this directory
 
 install conda / bioconda
 
 ## 1. convert observed data to pipeline inputs
-make a conda environment that contains snakemake, numpy and scipy
-
+clone this repository
 ```
 git clone https://github.com/mscharmann/ABC-pipeline
 
+```
+
+make a conda environment that contains snakemake, numpy and scipy
+```
 cd ABC-pipeline
-
 conda env create --file ABC_sims.yml
-
 conda activate ABC_sims
 ```
 
-the pipeline can then be run locally:
+a quick example of the pipeline can then be run locally like so:
+
 ```
 snakemake --cores 10
 ```
 
-on SLURM cluster can do:
+else on SLURM cluster can do:
 ```
 snakemake --cluster "sbatch" --jobs 100
 ```
 
-on LSF cluster can do:
+else on LSF cluster can do:
 ```
 snakemake --cluster 'bsub -W 4:0 -R "rusage[mem=1000]"' --jobs 100
 ```
@@ -78,7 +79,7 @@ sample_1	population_A
 sample_2	population_A
 sample_3	population B
 
-### execution
+## execution
 
 ## 2. specify models and priors
 
