@@ -35,6 +35,13 @@ conda activate ABC_sims
 
 snakemake --cores 10
 
+## on SLURM cluster can do:
+# snakemake --cluster "sbatch" --jobs 100
+
+## on LSF cluster can do:
+# snakemake --cluster "sbatch" --jobs 100
+
+## remove the conda environment
 # conda deactivate
 # conda remove --name ABC_sims --all
 
