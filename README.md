@@ -55,14 +55,15 @@ bsub -J "master" -W 12:0 -n 1 -R "rusage[mem=2000]" -M 48000000 < snake.sh
 ```
 
 
-## remove the conda environment
-# conda deactivate
-# conda remove --name ABC_sims --all
-
+afterwards, can remove the conda environment
+```
+conda deactivate
+conda remove --name ABC_sims --all
 ```
 
+
 ### Inputs
-- Filtered population genotypes (diploid) in VCF format. Polyploids can be dealt with as described by the excellent Roux & Pannell paper!
+- Filtered population genotypes (diploid) in VCF format. (Allo-polyploids may be dealt with as described by the excellent Roux & Pannell paper)
 
 Only bi-allelic SNPs are possible. A highly recommended VCF quality filtering workflow is described here: (Puritz link). An especially important filter is the removal of sites with excessive heterozygosity (Hardy-Weinberg test), which are frequent artefacts in RAD-seq and genome skimming data when paralogous (multiplied) sequences are erroneously collapsed onto one locus in the reference.
 	
@@ -78,9 +79,7 @@ sample_2	population_A
 sample_3	population B
 
 ### execution
-```
-snakemake
-```
+
 ## 2. specify models and priors
 
 ## 3. ABC in R: model choice
