@@ -10,7 +10,6 @@
 #			- "spinput.txt"-file: specifies number of loci, sample sizes and site-lengths for each locus
 
 # OUTPUT: 	- "ABCstat.txt"-file with selected popgen summary statistics
-#			- "pi_distr_mean_1.txt"
 
 # modular version: is c. 15% faster than the single script that counts AND claculates stats
 
@@ -294,125 +293,6 @@ def make_watterson_theta_and_tajimas_D (pi_per_site, nsites, segsites, samplesiz
 	
 	return theta_watterson, tajd
 
-
-def get_stats( replicates_counts, locilengths ):
-	
-	# input has the structure (example: a replicate with 2 loci of which the first had 3 seqgsites and the 2nd had 2 segsites):s
-	# [ [ [cnt1_1, cnt1_0, cnt2_1, cnt2_0 ],[cnt1_1, cnt1_0, cnt2_1, cnt2_0 ],[cnt1_1, cnt1_0, cnt2_1, cnt2_0 ] ], [ [cnt1_1, cnt1_0, cnt2_1, cnt2_0 ],[cnt1_1, cnt1_0, cnt2_1, cnt2_0 ] ] ]
-	
-	all_loci_cnts = [ np.asarray(x, dtype = "float" ) for x in replicates_counts ]	
-	
-	all_loci_freqs = get_freqs_from_count (all_loci_cnts)
-	
-	segsite_stats, ssA_list, ssB_list = count_segsites_stats (all_loci_freqs)
-	
-	n_list = [ [ sum(y) for y in x ] for x in replicates_counts ]
-	pi_list = get_pi ( all_loci_freqs, locilengths, 2, n_list )
-	
-	n_list = [ [ sum([y[0], y[1]]) for y in x ] for x in replicates_counts ]
-	piA_list = get_pi ( all_loci_freqs, locilengths, 0, n_list )
-	
-	n_list = [ [ sum([y[2], y[3]]) for y in x ] for x in replicates_counts ]
-	piB_list = get_pi ( all_loci_freqs, locilengths, 1, n_list )
-		
-	dxy_list = make_dxy (all_loci_freqs, locilengths)
-	
-	netDiv_list = dxy_list - ((piA_list + piB_list) / 2.0 ) 
-
-	"""
-	netDiv = dxy - mean([piA, piB])
-	Nei & Li (1979): eq. 25 
-	there: delta, also called Da, Dm etc.
-	"""
-	
-	Fst_list = WC_Fst_per_locus (all_loci_freqs, all_loci_cnts)
-		
-	Fst_list[Fst_list <= 0.0] = 0.0001
-	Fst_list[Fst_list >= 1.0] = 0.9999
-	
-	pi_mean = np.mean( pi_list )
-	pi_std = np.std( pi_list )
-	piA_mean = np.mean( piA_list )
-	piA_std = np.std( piA_list )
-	piB_mean = np.mean( piB_list )
-	piB_std = np.std( piB_list )
-	dxy_mean = np.mean( dxy_list )
-	dxy_std = np.std( dxy_list )
-	netDiv_mean = np.mean( netDiv_list )
-	netDiv_std = np.std( netDiv_list )
-	Fst_mean = np.mean( Fst_list )
-	Fst_std = np.std( Fst_list )
-	
-	###
-	## now watterson_theta, tajimas_D per population:
-	# needs data from (by index): piA_list[locus_idx], locilengths[locus_idx], ssA_list[locus_idx], samplesize_A
-	# samplesize_A: sum( all_loci_cnts[locus_idx][0][:2] )
-	# samplesize_B: sum( all_loci_cnts[locus_idx][0][2:4] )
-
-	tw_tjD_list = [ make_watterson_theta_and_tajimas_D ( piA_list[locus_idx], locilengths[locus_idx], ssA_list[locus_idx], sum( all_loci_cnts[locus_idx][0][:2] )  ) for locus_idx in range(len(locilengths)) ]
-	thetaW_A_list = [x[0] for x in tw_tjD_list]
-	TajD_A_list = [x[1] for x in tw_tjD_list]
-	
-	tw_tjD_list = [ make_watterson_theta_and_tajimas_D ( piB_list[locus_idx], locilengths[locus_idx], ssB_list[locus_idx], sum( all_loci_cnts[locus_idx][0][2:4] )  ) for locus_idx in range(len(locilengths)) ]
-	thetaW_B_list = [x[0] for x in tw_tjD_list]
-	TajD_B_list = [x[1] for x in tw_tjD_list]
-	
-	thetaW_A_avg = np.mean( thetaW_A_list )
-	thetaW_A_std = np.std( thetaW_A_list )
-	thetaW_B_avg = np.mean( thetaW_B_list )
-	thetaW_B_std = np.std( thetaW_B_list )
-	
-	# TajD is undefined (numpy.nan) if there are no segsites, so we just drop numpy.nan :
-	[TajD_A_avg, TajD_B_avg] = [ np.mean( np.ma.masked_array( x , np.isnan( x )) ) for x in [ TajD_A_list, TajD_B_list] ]
-	[TajD_A_std, TajD_B_std] = [ np.std( np.ma.masked_array( x , np.isnan( x )) ) for x in [ TajD_A_list, TajD_B_list] ]
-
-	
-	####	
-	
-	
-#	["ssA_avg", "ssA_std", "ssB_avg", "ssB_std", "ssglob_avg", "ssglob_std", "paA_avg", "paA_std", "paB_avg", "paB_std", "srecf_avg", "srecf_std", "thetaW_A_avg", "thetaW_A_std", "thetaW_B_avg", "thetaW_B_std", "TajD_A_avg", "TajD_B_avg", "TajD_A_std", "TajD_B_std"]
-	
-#		[ssA_avg, ssA_std, ssB_avg, ssB_std, ssglob_avg, ssglob_std, paA_avg, paA_std, paB_avg, paB_std, srecf_avg, srecf_std, thetaW_A_avg, thetaW_A_std, thetaW_B_avg, thetaW_B_std, TajD_A_avg, TajD_B_avg, TajD_A_std, TajD_B_std]
-	
-	
-	
-	# fit a beta distrib and force it to acknowledge that the input data is already in the interval 0,1
-	try:
-		Fst_beta1, Fst_beta2, lower_limit, upperlimit = scipy.stats.beta.fit( Fst_list, floc=0, fscale=1)
-	except scipy.stats._continuous_distns.FitSolverError: 	
-		Fst_beta1, Fst_beta2, lower_limit, upperlimit = ["na","na","na","na"]	
-
-	# percentiles:
-	dxy_perc05, dxy_perc25, dxy_perc50, dxy_perc75, dxy_perc95 = np.percentile(dxy_list, [5, 25, 50, 75, 95])
-	netDiv_perc05, netDiv_perc25, netDiv_perc50, netDiv_perc75, netDiv_perc95 = np.percentile(netDiv_list, [5, 25, 50, 75, 95])
-	Fst_perc05, Fst_perc25, Fst_perc50, Fst_perc75, Fst_perc95 = np.percentile(Fst_list, [5, 25, 50, 75, 95])
-	
-	# correlaction R2 between the pi of A vs B:
-	piA_piB_Rsq = scipy.stats.pearsonr(piA_list, piB_list)[0]
-	
-	# local maxima in distrib: was not useful in classification according to random forest 
-# 	dxy_peaks = find_peaks_in_hist (dxy_list)
-#	Fst_peaks = find_peaks_in_hist (Fst_list)
-
-	# bimodality?
-	dxy_hist_lowest_bins, dxy_hist_subhighest_bins, dxy_hist_highest_bins = simple_bimodality_check (dxy_list, [np.min(dxy_list), np.max(dxy_list)] )
-	netDiv_hist_lowest_bins, netDiv_hist_subhighest_bins, netDiv_hist_highest_bins = simple_bimodality_check (netDiv_list, [np.min(netDiv_list), np.max(netDiv_list)] )
-	Fst_hist_lowest_bins, Fst_hist_subhighest_bins, Fst_hist_highest_bins = simple_bimodality_check (Fst_list, [0.0,1.0])
-	
-	## get 2D SFS / joint site frequency spectrum JSFS 2DSFS
-	JSFS = make_JSFS (all_loci_freqs) # returns a list of the bin densities in a folded 2D SFS, length of 55 bins for a 2D hist of 10x10 fields
-	
-	# finish
-#	stats = [ pi_mean, pi_std, piA_mean, piA_std, piB_mean, piB_std, dxy_mean, dxy_std, netDiv_mean, netDiv_std, Fst_mean, Fst_std, Fst_beta1, Fst_beta2, dxy_perc05, dxy_perc25, dxy_perc50, dxy_perc75, dxy_perc95, netDiv_perc05, netDiv_perc25, netDiv_perc50, netDiv_perc75, netDiv_perc95, Fst_perc05, Fst_perc25, Fst_perc50, Fst_perc75, Fst_perc95, piA_piB_Rsq, dxy_peaks, Fst_peaks, dxy_hist_lowest_bins, dxy_hist_subhighest_bins, dxy_hist_highest_bins, netDiv_hist_lowest_bins, netDiv_hist_subhighest_bins, netDiv_hist_highest_bins, Fst_hist_lowest_bins, Fst_hist_subhighest_bins, Fst_hist_highest_bins ] + JSFS
-	
-	stats = segsite_stats + [thetaW_A_avg, thetaW_A_std, thetaW_B_avg, thetaW_B_std, TajD_A_avg, TajD_A_std, TajD_B_avg, TajD_B_std] + [ pi_mean, pi_std, piA_mean, piA_std, piB_mean, piB_std, dxy_mean, dxy_std, netDiv_mean, netDiv_std, Fst_mean, Fst_std, Fst_beta1, Fst_beta2, dxy_perc05, dxy_perc25, dxy_perc50, dxy_perc75, dxy_perc95, netDiv_perc05, netDiv_perc25, netDiv_perc50, netDiv_perc75, netDiv_perc95, Fst_perc05, Fst_perc25, Fst_perc50, Fst_perc75, Fst_perc95, piA_piB_Rsq, dxy_hist_lowest_bins, dxy_hist_subhighest_bins, dxy_hist_highest_bins, netDiv_hist_lowest_bins, netDiv_hist_subhighest_bins, netDiv_hist_highest_bins, Fst_hist_lowest_bins, Fst_hist_subhighest_bins, Fst_hist_highest_bins ] + JSFS
-
-# 	array_to_file ("pi_tot.txt", pi_list)
-# 	array_to_file ("dxy.txt", dxy_list)
-# 	array_to_file ("netDiv.txt", netDiv_list)
-# 	array_to_file ("FstWC.txt", Fst_list)
-	
-	return stats
 
 def array_to_file (outfname, outarray):
 	
@@ -759,10 +639,15 @@ def get_popspecific_stats (all_loci_freqs, replicates_counts, locilengths, pop_i
 	thetaW_list = [x[0] for x in tw_tjD_list]
 	TajD_list = [x[1] for x in tw_tjD_list]
 	
-	# TajD is undefined (numpy.nan) if there are no segsites, so we just drop numpy.nan :
-	TajD_avg =  np.mean( np.ma.masked_array( TajD_list , np.isnan( TajD_list )) )
-	TajD_std =  np.std( np.ma.masked_array( TajD_list , np.isnan( TajD_list )) )
-
+	# TajD is undefined (numpy.nan) if there are no segsites, so we just drop numpy.nan and -inf and Inf :
+	tdma = np.ma.masked_array( TajD_list , np.logical_not( np.isfinite( TajD_list )) )
+	TajD_avg =  np.mean( tdma )
+	TajD_std =  np.std( tdma )
+		
+	if not np.isfinite(TajD_avg ): # sometimes gets zero-division or the like.. (when there are no segsites)		
+		TajD_avg = np.nan
+		TajD_std = np.nan
+	
 	return [ np.mean(ss_list), np.std(ss_list), np.mean(pa_list), np.std(pa_list), np.mean(pi_list), np.std(pi_list), np.mean( thetaW_list ), np.std( thetaW_list ), TajD_avg, TajD_std], pi_list
 
 
@@ -868,13 +753,13 @@ if __name__ == "__main__":
 	"""
 	
 	ABCstats_header = stats_header_assembler (npop)
-	
+
 	stepsize = npop*2 # stepsize for reading from stdin; is npop*2
 	with open("ABCstat.txt", "w") as OUTFILE:
 		OUTFILE.write("\t".join(ABCstats_header) + "\n" )
 				
 		for line in sys.stdin:
-#			print (line)
+#			print line
 			
 			try:
 				first_char = int( line[0] ) # this means it is a sample line (most lines are)
@@ -915,8 +800,7 @@ if __name__ == "__main__":
 						popspec_stats, pi_list = get_popspecific_stats (all_loci_freqs, all_loci_cnts, locilengths, pop)
 #							print pop, popspec_stats
 						list_of_pi_lists.append( pi_list )
-						stats += popspec_stats
-
+						stats += popspec_stats 
 					for pair in pop_pairs:
 						ps = pair.split("v")
 						stats += get_pop_pairwise_stats (pair, all_loci_freqs, locilengths, list_of_pi_lists[int(ps[0])-1] , list_of_pi_lists[int(ps[1])-1])
@@ -948,6 +832,4 @@ if __name__ == "__main__":
 		pi_list_nonzero = [x for x in pi_list if x != 0]
 		mean_nonzero_pi = np.mean(pi_list_nonzero)
 		O.write("\n".join([str(float(x)/mean_nonzero_pi) for x in pi_list_nonzero])+"\n")
-		
-		
 		

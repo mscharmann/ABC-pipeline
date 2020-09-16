@@ -45,9 +45,9 @@ else on SLURM cluster can do:
 snakemake --cluster "sbatch" --jobs 100
 ```
 
-else on LSF cluster can do:
+else on LSF cluster can do (give 2 cores per job):
 ```
-snakemake --cluster 'bsub -W 4:0 -R "rusage[mem=1000]"' --jobs 100
+snakemake --cluster 'bsub -W 4:0 -R "rusage[mem=1000]" -n 2' --jobs 100
 ```
 
 or else on LSF better submit a master job for snakemake, named snake.sh and containing the command above, and then submit:
