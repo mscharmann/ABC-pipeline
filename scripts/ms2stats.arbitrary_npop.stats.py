@@ -574,7 +574,7 @@ def stats_header_assembler (npop):
 	#					[ Fst_beta1, Fst_beta2, dxy_perc05, dxy_perc25, dxy_perc50, dxy_perc75, dxy_perc95, netDiv_perc05, netDiv_perc25, netDiv_perc50, netDiv_perc75, netDiv_perc95, Fst_perc05, Fst_perc25, Fst_perc50, Fst_perc75, Fst_perc95, piA_piB_Rsq, dxy_hist_lowest_bins, dxy_hist_subhighest_bins, dxy_hist_highest_bins, netDiv_hist_lowest_bins, netDiv_hist_subhighest_bins, netDiv_hist_highest_bins, Fst_hist_lowest_bins, Fst_hist_subhighest_bins, Fst_hist_highest_bins ]
 	
 	pairwise_stats_1 = ["srefc", "dxy", "netDiv", "Fst"]
-	pairwise_stats_2 = [ "Fst_beta1", "Fst_beta2", "dxy_perc05", "dxy_perc25", "dxy_perc50", "dxy_perc75", "xy_perc95", "netDiv_perc05", "netDiv_perc25", "netDiv_perc50", "netDiv_perc75", "netDiv_perc95", "Fst_perc05", "Fst_perc25","Fst_perc50", "Fst_perc75", "Fst_perc95", "corr_coeff_pi", "dxy_hist_lowest_bins", "dxy_hist_subhighest_bins", "dxy_hist_highest_bins", "netDiv_hist_lowest_bins", "netDiv_hist_subhighest_bins", "netDiv_hist_highest_bins", "Fst_hist_lowest_bins", "Fst_hist_subhighest_bins", "Fst_hist_highest_bins"] + [ "JSFS_bin_" + str(i) for i in range(55) ]
+	pairwise_stats_2 = [ "Fst_beta1", "Fst_beta2", "dxy_perc05", "dxy_perc25", "dxy_perc50", "dxy_perc75", "dxy_perc95", "netDiv_perc05", "netDiv_perc25", "netDiv_perc50", "netDiv_perc75", "netDiv_perc95", "Fst_perc05", "Fst_perc25","Fst_perc50", "Fst_perc75", "Fst_perc95", "corr_coeff_pi", "dxy_hist_lowest_bins", "dxy_hist_subhighest_bins", "dxy_hist_highest_bins", "netDiv_hist_lowest_bins", "netDiv_hist_subhighest_bins", "netDiv_hist_highest_bins", "Fst_hist_lowest_bins", "Fst_hist_subhighest_bins", "Fst_hist_highest_bins"] + [ "JSFS_bin_" + str(i) for i in range(55) ]
 	
 	all_stats = []
 	for x in global_stats:
