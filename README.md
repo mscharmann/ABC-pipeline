@@ -1,6 +1,8 @@
 # ABC-pipeline
 
-This is a workflow and collection of scripts to estimate the demographic history of populations from sequencing data. Almost all steps and scripts can be modified and adopted to test many different questions. This pipeline is derived from the pioneering work of Camille Roux (LINK). My focus was to allow non-programmers like myself to more easily modify the pipeline for particular projects. Hence important parts are written in python 2.7. Although code readability and flexibility come at the cost of computational efficiency, it may overall be more efficient to spend more CPU hours but less hands-on working/coding hours.
+This is a workflow and collection of scripts to estimate the demographic history of populations from sequencing data. It is computationally feasible for datasets from 2 to c. 15,000 loci, if the loci are relatively short (such as <5kb). This includes RNA-seq, ddRAD and other reduced-representation datasets, or WGS data if subsampled to a number of relevent regions.
+
+Almost all steps and scripts can be modified and adopted to test many different questions. This pipeline is derived from the pioneering work of Camille Roux (LINK). My focus was to allow non-programmers like myself to more easily modify the pipeline for particular projects. Hence important parts are written in python (2.7 and/or 3.x). Although code readability and flexibility come at the cost of computational efficiency, it may overall be more efficient to spend more CPU hours but less hands-on working/coding hours.
 
 ## Main steps of the workflow
 - convert observed data to pipeline inputs: genotypes and fixed model parameters of the sampling scheme (number of populations and samples, number of loci, missingness of loci, length of loci in bp)
