@@ -503,14 +503,14 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="0.49964448"
-     inkscape:cx="366.74648"
+     inkscape:cx="323.78566"
      inkscape:cy="626.08803"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
      inkscape:window-width="1920"
      inkscape:window-height="954"
-     inkscape:window-x="19"
+     inkscape:window-x="41"
      inkscape:window-y="0"
      inkscape:window-maximized="0" />
   <metadata
@@ -1177,5 +1177,22 @@
            x="186.79239"
            y="711.25">T_merge_anc12_into_3</tspan></text>
     </g>
+    <text
+       sodipodi:linespacing="125%"
+       id="text4451-2"
+       y="857.75763"
+       x="95.318787"
+       style="font-style:normal;font-weight:normal;font-size:15px;line-height:125%;font-family:Sans;-inkscape-font-specification:Sans;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       xml:space="preserve"
+       inkscape:export-xdpi="235.75774"
+       inkscape:export-ydpi="235.75774"><tspan
+         y="857.75763"
+         x="95.318787"
+         sodipodi:role="line"
+         id="tspan5346">lsimilar to 2-pop, this model can be varied in the timing, </tspan><tspan
+         y="876.50763"
+         x="95.318787"
+         sodipodi:role="line"
+         id="tspan4523">direction, strength etc of migration between all three pops.</tspan></text>
   </g>
 </svg>
