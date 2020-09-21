@@ -87,16 +87,26 @@ def draw_from_truncated_lognormal(mode_of_lnorm, sigma, lowerbound, upperbound):
 
 	
 def draw_from_maxcutoff_flat_range( lowerbound, upperbound, maxcutoff ):
+	max_allowed = 10000
+	attempt = 0
 	x = maxcutoff + 1
 	while x > maxcutoff:
 		x = numpy.random.uniform( lowerbound, upperbound )
+		attempt += 1
+		if attempt > max_allowed:
+			return maxcutoff
 	return x
 
 
 def draw_from_mincutoff_flat_range( lowerbound, upperbound, mincutoff ):
+	max_allowed = 10000
+	attempt = 0
 	x = mincutoff - 1
 	while x < mincutoff:
 		x = numpy.random.uniform( lowerbound, upperbound )
+		attempt += 1
+		if attempt > max_allowed:
+			return mincutoff
 	return x
 
 
