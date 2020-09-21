@@ -47,7 +47,7 @@ else on SLURM cluster can do:
 snakemake --cluster "sbatch" --jobs 100
 ```
 
-else on LSF cluster can do (give 2 cores per job):
+else on LSF cluster can do (give 2 cores per job for 2- and 3-pop models, give only 1 core per job for 1-pop models):
 ```
 snakemake --cluster 'bsub -W 4:0 -R "rusage[mem=1000]" -n 2' --jobs 100
 ```

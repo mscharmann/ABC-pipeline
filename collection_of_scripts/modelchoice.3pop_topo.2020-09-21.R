@@ -1,0 +1,320 @@
+################################################
+# -2. define some custom functions
+################################################
+
+
+random_sample_from_sumstats <- function(sumstats_data, sample_size) {
+
+	collector <- data.frame(matrix(ncol = ncol(sumstats_data), nrow = 0))
+	colnames(collector) <- colnames(sumstats_data)
+
+	for ( level in levels(as.factor(sumstats_data$model)) ) {
+		print(level)
+		a <- sumstats_data[sumstats_data$model == level, ]
+		randsample <- a[ sample(1:nrow(a), sample_size, replace=FALSE), ]
+		collector <- rbind(collector, randsample)
+		}
+	return(collector)
+	
+	}
+
+find_near_zero_variance_columns <- function(mydataframe) {
+	
+	# because lda.default() refuses to work with data that has < 1e-08 variance (tol)
+	# but lda are useful predictors and we want them
+	
+	bad_columns = c()
+	for ( i in seq(1, ncol(mydataframe) ) ) {
+		if ( var( mydataframe[,i] ) < 1e-07 ) {
+			bad_columns <- append(bad_columns, i)
+			}
+		}
+#	print(bad_columns)
+	return(bad_columns)
+	}
+
+make_and_plot_LDA <- function(all_sumstats_nomodel, modelinex, obs_real, outfile_prefix) {
+
+## requires libraries MASS , ggplot
+
+# 1. scale and center the summary statistics, keep record of the parameters to transform also the observed stats:
+
+sumstat_column_means <- apply(all_sumstats_nomodel,2,mean) # to dimension 2 = columns
+sumstat_column_sds <- apply(all_sumstats_nomodel,2,sd)
+
+scaled_and_centered_sumstats <- as.data.frame(matrix(0, ncol = ncol(all_sumstats_nomodel), nrow = nrow(all_sumstats_nomodel)))
+for ( stat_idx in seq(1, ncol(all_sumstats_nomodel) )) {
+	a <- all_sumstats_nomodel[,stat_idx] - sumstat_column_means[stat_idx]
+	a <- a / sumstat_column_sds[stat_idx]
+	scaled_and_centered_sumstats[,stat_idx] <- a
+	}
+colnames(scaled_and_centered_sumstats) <- colnames(all_sumstats_nomodel)
+
+obs.scaled_and_centered <- as.data.frame(matrix(0, ncol = ncol(obs_real), nrow = nrow(obs_real)))
+for ( stat_idx in seq(1, ncol(obs_real) )) {
+	a <- obs_real[,stat_idx] - sumstat_column_means[stat_idx]
+	a <- a / sumstat_column_sds[stat_idx]
+	obs.scaled_and_centered[,stat_idx] <- a
+	}
+colnames(obs.scaled_and_centered) <- colnames(obs_real)
+
+# 2. now do the LDA, project sumstats and observed into LDA space, and plot first two axes:
+
+modelindex <- as.factor(modelindex)
+
+my_lda <- lda(scaled_and_centered_sumstats, modelindex, tol = 1.0e-12)
+
+lda_pred <- predict(object = my_lda, newdata = scaled_and_centered_sumstats)
+obs_projected_into_LDA_space <- predict(object = my_lda, newdata = obs.scaled_and_centered) 
+
+print(obs_projected_into_LDA_space)
+
+dataset = data.frame(model = modelindex, lda = lda_pred$x)
+       
+LD1.2 <- ggplot(dataset) + geom_point(aes(lda.LD1, lda.LD2, colour = model), size = 1.0, alpha = 0.3) + 
+			geom_point(x=obs_projected_into_LDA_space$x[,1], y=obs_projected_into_LDA_space$x[,2], shape=3, size=3.0, colour="black") +
+			scale_colour_manual(values=cbPalette)
+
+pdf( sprintf("%s.LDA.pdf", outfile_prefix) )
+print(LD1.2)
+dev.off()
+
+}
+
+
+
+################################################
+# -1. load dependencies
+################################################
+
+library(abcrf)
+library(ggplot2)
+library(data.table)
+library(MASS)
+
+# http://www.cookbook-r.com/Graphs/Colors_%28ggplot2%29/#a-colorblind-friendly-palette
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+#  To use for fills, add
+#   scale_fill_manual(values=cbPalette)
+# 
+# # To use for line and point colors, add
+#   scale_colour_manual(values=cbPalette)
+
+
+# DEFINE NUMBER OF PARALLEL CORES:
+n_cpu = 4
+
+################################################
+# 0. import simulated statistics 
+################################################
+
+models = c("topo.1-3--2",
+"topo.2-1--3",
+"topo.2-3--1")
+
+
+# name for all outfiles:
+outfile_prefix <- paste(models, collapse = ".")
+
+for (i in models ) {
+
+INPUT <- fread((sprintf("ABCstat.%s.txt", i)), data.table = FALSE, na.strings="na")
+colnames(INPUT) <- make.names(colnames(INPUT))
+#  # remove zero-variance summary statistics: since segsites are fixed... bialsites_avg	bialsites_std
+# INPUT <- subset(INPUT, select = -bialsites_avg)
+# INPUT <- subset(INPUT, select = -bialsites_std)
+INPUT <- cbind(sprintf("%s", i), INPUT)
+colnames(INPUT)[1] <- "model"
+assign(sprintf("sumstats_%s", i), INPUT)
+
+}
+
+rm(INPUT)
+
+all_sumstats <- do.call(rbind, mget(ls(pattern='sumstats_')))
+all_sumstats <- data.frame(all_sumstats, row.names=NULL)
+all_sumstats <- na.omit(all_sumstats) # remove eventual NAs that result from little bugs in the generation of the input files
+
+all_sumstats_nomodel <- subset(all_sumstats, select = -model)
+
+# drop near zero-variance stats:
+tb_dropped_columns <- find_near_zero_variance_columns(all_sumstats_nomodel)
+if ( ! is.null(tb_dropped_columns) ) {
+all_sumstats_nomodel <- subset(all_sumstats_nomodel, select = -tb_dropped_columns)
+}
+
+# stitch back together and separate again:
+all_sumstats <- cbind(all_sumstats$model , all_sumstats_nomodel)
+colnames(all_sumstats)[1] <- "model"
+all_sumstats_nomodel <- subset(all_sumstats, select = -model)
+modelindex <- as.vector(all_sumstats$model)
+
+
+print("succesfully read input data")
+
+################################################
+# 1.  import observed data:
+################################################
+
+
+## import obs if there is any:
+
+obs_real <- fread("../obs_data/variants_Solanum_august1.vcf.gz.4xdegen_and_chrom_as_gene.vcf.ABCstat.txt", data.table = FALSE, na.strings="na")
+
+obs_real <- data.frame(obs_real)
+# drop the columns / statistics that have near zero variance in the reference table:
+if ( ! is.null(tb_dropped_columns) ) {
+obs_real <- subset(obs_real, select = -tb_dropped_columns)
+}
+
+################################################
+# 2. check model overlap simplisitc, visually with histograms for each sumstat
+################################################
+print("doing histograms")
+model <- modelindex
+
+pdf( sprintf("%s.sumstat_histograms.pdf", outfile_prefix) )
+
+for (stat in colnames(all_sumstats_nomodel) ) {
+
+mydat <- data.frame(modelindex, all_sumstats[[stat]] )
+
+histplot <- ggplot(mydat, aes( x = mydat[,2] , fill = model )) + geom_histogram(alpha = 0.6, aes(y = ..density..), position = 'identity') + xlab( stat ) + geom_vline(xintercept = obs_real[[stat]]) + scale_fill_manual(values=cbPalette)
+
+plot(histplot)
+
+} 
+dev.off()
+
+################################################
+# 3. check model overlap simplistic, visually with a PCA
+################################################
+print("doing PCA")
+# plot 6 first axes of PCA on the sumstats!
+
+subsampled <- random_sample_from_sumstats(all_sumstats, 9000)
+subsampled_nomodel <- subset(subsampled, select = -model)
+subsampled_modelindex <- as.vector(subsampled$model)
+
+all_sumstats_PCA <- prcomp(subsampled_nomodel, center=TRUE, scale.=TRUE)
+
+scores <- data.frame(subsampled_modelindex, all_sumstats_PCA$x[,1:6])
+
+obs_scores <- data.frame(predict(all_sumstats_PCA,obs_real))
+
+pc1.2 <- qplot(x=PC1, y=PC2, data=scores, colour=factor(subsampled_modelindex), size = I(1.0), alpha = 0.2 ) + scale_colour_manual(values=cbPalette) + geom_point(data = obs_scores, 
+             mapping = aes(x = PC1, y = PC2, colour = "black"))
+pc3.4 <- qplot(x=PC3, y=PC4, data=scores, colour=factor(subsampled_modelindex), size = I(1.0), alpha = 0.2  ) + scale_colour_manual(values=cbPalette) + geom_point(data = obs_scores, 
+             mapping = aes(x = PC3, y = PC4, colour = "black"))
+pc5.6 <- qplot(x=PC5, y=PC6, data=scores, colour=factor(subsampled_modelindex), size = I(1.0), alpha = 0.2  ) + scale_colour_manual(values=cbPalette) + geom_point(data = obs_scores, 
+             mapping = aes(x = PC5, y = PC6, colour = "black"))
+
+pdf( sprintf("%s.sumstat_PCA.pdf", outfile_prefix)  )
+pc1.2
+pc3.4
+pc5.6
+dev.off()
+
+################################################
+# 4. check model fit simplisitc, visually with a LDA: Where does obs tend to fall, how well distinguishable are the models?
+################################################
+print("doing LDA")
+
+## it sometimes throws this error:
+# Error in eval(expr, envir, enclos) : object 'lda.LD1' not found
+# Calls: make_and_plot_LDA ... by_layer -> f -> <Anonymous> -> f -> lapply -> FUN -> eval
+# Execution halted
+## so we wrap the LDA in tryCatch to skip if necessary!
+
+tryCatch({  make_and_plot_LDA(all_sumstats_nomodel, modelinex, obs_real, outfile_prefix) }, error = function(e) {"eh-eh, skipping LDA"})
+
+
+################################################
+# 5. final analyis: build random forest (highest parameters), classify and compute posterior prob.:
+################################################
+
+
+modelindex <- as.factor(all_sumstats$model)
+
+#
+print("growing final random forest")
+my_RF <- abcrf(modelindex ~ ., data = all_sumstats_nomodel, lda=TRUE, ntree=1000, sampsize=min(10^5, length(modelindex)), ncores = n_cpu)
+#my_RF <- abcrf(modelindex ~ ., data = all_sumstats_nomodel, lda=TRUE, ntree=100, sampsize=1000, ncores = n_cpu)
+
+
+# plot the summary stat importance:
+pdf( sprintf("%s.RF.sumstat_importance.pdf", outfile_prefix) )
+plot(my_RF, training = all_sumstats_nomodel, n.var=30, cex = 0.3, pdf = TRUE)
+dev.off()
+
+# do not plot the LDA and project the obs onto it: (built-in plot function is shitty here)
+# pdf("RF.LDA.20k.3models.3.pdf")
+# plot(my_RF, n.var=0, sumsta=all_sumstats_nomodel, cex = 0.3)
+# dev.off()
+
+print("Done.")
+print("classifying observed data and calculating posterior prob.")
+
+# first the global classification and "posterior probability"
+my_RF_classification_result_global <- predict(my_RF, training = all_sumstats_nomodel, obs_real, ntree=1000, sampsize=min(10^5, length(modelindex)), ncores = n_cpu )
+#my_RF_classification_result_global <- predict(my_RF, training = all_sumstats_nomodel, obs_real, ntree=200, sampsize=1000, ncores = n_cpu )
+
+print(my_RF_classification_result_global)
+
+# now, we want to know how what the prob. of correct classification are among specific models, 
+# not only globally -- similar to the posterior probabilities assigned to each model in
+# in traditional abc model choice: the more similar the post.probs of two competing models are, the
+# less distinguishable. Here we mimic this information by doing pairwise contrasts, because the global contrast does not 
+# allow any conclusion about specific sub-optimal models, some of which may be only slightly less probable than the
+# RF choice model while others may be grossly off / very clearly distinguishable.
+
+# pairwise contrasts of the chosen vs. each rejected model:
+
+chosen_model <- as.character( my_RF_classification_result_global$allocation )
+rejected_models <- levels(modelindex)[levels(modelindex) != chosen_model  ]
+
+collector <- matrix(ncol = 4, nrow = 0)
+res <- c("global", chosen_model, my_RF_classification_result_global$post.prob, "NA")
+collector <- rbind(collector, res)
+
+for (model in rejected_models) {
+
+# subset data
+selected_models <- c(chosen_model, model)
+sub_all_sumstats <- all_sumstats[all_sumstats$model %in% selected_models,]
+
+
+# prep
+sub_sumstat_nomodel <- subset(sub_all_sumstats, select = -model)
+sub_modelindex <- as.factor(as.character(sub_all_sumstats$model))
+
+# train RF, run classification & PP estimation forest
+sub_RF <- abcrf(sub_modelindex ~ ., data = sub_sumstat_nomodel, lda=TRUE, ntree=1000, sampsize=min(10^5, length(sub_modelindex)), ncores = n_cpu )
+sub_RF_classification_result <- predict(sub_RF, training = sub_sumstat_nomodel , obs_real, ntree=1000, sampsize=min(10^5, length(sub_modelindex)), ncores = n_cpu )
+#sub_RF <- abcrf(sub_modelindex ~ ., data = sub_sumstat_nomodel, lda=TRUE, ntree=100, sampsize=1000, ncores = n_cpu )
+#sub_RF_classification_result <- predict(sub_RF, training = sub_sumstat_nomodel , obs_real, ntree=100, sampsize=1000, ncores = n_cpu )
+
+
+# collect result
+sub_chosen_model <- as.character( sub_RF_classification_result$allocation )
+res <- c(model, sub_chosen_model, sub_RF_classification_result$post.prob, sub_RF_classification_result$post.prob/(1 - sub_RF_classification_result$post.prob) )
+collector <- rbind(collector, res)
+}
+
+collector <- as.data.frame(collector, row.names = FALSE)
+colnames(collector) <- c("contrast","RF_majority_vote","post.prob", "Bayes_factor_of_best_model")
+
+
+
+sink(file = sprintf("%s.RF.classification.txt", outfile_prefix) , append = FALSE)
+options(width=1000) # to avoid wrapping of long rows 
+print("info on the Random Forest:")
+print(my_RF)
+print("#########################")
+print("result of classification:")
+print(collector, row.names = FALSE, quote = FALSE)
+sink()
+
+print("Done.")
+
+
