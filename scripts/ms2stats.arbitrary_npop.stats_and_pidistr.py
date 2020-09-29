@@ -225,10 +225,10 @@ def count_private_alleles ( replicates_counts, pop_idx ):
 	
 	## logic: private if the count of this allele in this pop is equal to the global count of that allele
 	
-	# also counts the private singletons and doubletons
+	# DOES NOT count the private singletons and doubletons
 	
-	private_singletons = 0
-	private_doubletons = 0
+#	private_singletons = 0
+#	private_doubletons = 0
 	pa_list = []
 	cnt_idx = pop_idx*2
 	for locus in replicates_counts:
@@ -238,20 +238,21 @@ def count_private_alleles ( replicates_counts, pop_idx ):
 			pops_allele_0_cnt = site[cnt_idx+1]
 			if pops_allele_1_cnt == sum( [site[x] for x in range(len(site)) if not x & 1] ): # if even
 				pacnt += 1
-				if pops_allele_1_cnt == 1:
-					private_singletons += 1
-				elif pops_allele_1_cnt == 2:
-					private_doubletons += 1
+#				if pops_allele_1_cnt == 1:
+#					private_singletons += 1
+#				elif pops_allele_1_cnt == 2:
+#					private_doubletons += 1
 			elif pops_allele_0_cnt == sum( [site[x] for x in range(len(site)) if x & 1] ): # if odd
 				pacnt += 1
-				if pops_allele_0_cnt == 1:
-					private_singletons += 1
-				elif pops_allele_0_cnt == 2:
-					private_doubletons += 1
+#				if pops_allele_0_cnt == 1:
+#					private_singletons += 1
+#				elif pops_allele_0_cnt == 2:
+#					private_doubletons += 1
 		pa_list.append( pacnt )
 	
 #	print (pop_idx, private_singletons, private_doubletons)
-	return np.array( pa_list ), private_singletons, private_doubletons
+#	return np.array( pa_list ), private_singletons, private_doubletons
+	return np.array( pa_list )
 
 def count_reciprocally_fixed_sites (all_loci_freqs, idx_popA, idx_popB):
 	
@@ -275,6 +276,8 @@ def make_watterson_theta_and_tajimas_D (pi_per_site, nsites, segsites, samplesiz
 	#	implemented as on wikipedia page, reference:
 	#	Tajima (1989) Genetics 123 (3): 585-95
 	# 	TajD is undefined (numpy.nan) if there are no segsites
+	
+	# thetaW now per-site
 	
 	def n_minus_1_harmonic_number (x):
 		harmsum = 0.0
@@ -300,9 +303,9 @@ def make_watterson_theta_and_tajimas_D (pi_per_site, nsites, segsites, samplesiz
 		C = np.sqrt((e1*segsites)+(e2*segsites*(segsites-1)))	
 		return C
 	
-	theta_watterson = segsites / n_minus_1_harmonic_number (samplesize)
+	theta_watterson = ( segsites / n_minus_1_harmonic_number (samplesize) ) / nsites
 	TajD_constant = calc_TajD_constant (segsites, samplesize)	
-	tajd = ((pi_per_site*nsites) - theta_watterson) / TajD_constant
+	tajd = ((pi_per_site*nsites) - (theta_watterson*nsites)) / TajD_constant
 	
 	return theta_watterson, tajd
 
@@ -597,8 +600,8 @@ def stats_header_assembler (npop):
 		for x in popspec_stats:
 			all_stats.append( "p" + str(pop+1) + "_" + x + "_avg" )
 			all_stats.append( "p" + str(pop+1) + "_" + x + "_std" )
-		all_stats.append( "p" + str(pop+1) + "_" + "psingletons" )
-		all_stats.append( "p" + str(pop+1) + "_" + "pdoubletons" )
+#		all_stats.append( "p" + str(pop+1) + "_" + "psingletons" )
+#		all_stats.append( "p" + str(pop+1) + "_" + "pdoubletons" )
 		
 	pop_pairs = make_nonredundant_pop_pairs (npop)
 
@@ -639,7 +642,8 @@ def get_global_stats (all_loci_freqs, replicates_counts, locilengths):
 def get_popspecific_stats (all_loci_freqs, replicates_counts, locilengths, pop_idx):
 	
 	ss_list = count_segregating_sites (all_loci_freqs, pop_idx)
-	pa_list, psingle, pdouble = count_private_alleles ( replicates_counts, pop_idx )
+#	pa_list, psingle, pdouble = count_private_alleles ( replicates_counts, pop_idx )
+	pa_list = count_private_alleles ( replicates_counts, pop_idx )
 	
 	cnts_idx = pop_idx*2
 	n_list = [ [ sum([y[cnts_idx], y[cnts_idx+1]]) for y in x ] for x in replicates_counts ]
@@ -663,7 +667,7 @@ def get_popspecific_stats (all_loci_freqs, replicates_counts, locilengths, pop_i
 		TajD_avg = np.nan
 		TajD_std = np.nan
 	
-	return [ np.mean(ss_list), np.std(ss_list), np.mean(pa_list), np.std(pa_list), np.mean(pi_list), np.std(pi_list), np.mean( thetaW_list ), np.std( thetaW_list ), TajD_avg, TajD_std, psingle, pdouble], pi_list
+	return [ np.mean(ss_list), np.std(ss_list), np.mean(pa_list), np.std(pa_list), np.mean(pi_list), np.std(pi_list), np.mean( thetaW_list ), np.std( thetaW_list ), TajD_avg, TajD_std], pi_list
 
 
 def get_pop_pairwise_stats (pair, all_loci_freqs, locilengths, piA_list, piB_list):

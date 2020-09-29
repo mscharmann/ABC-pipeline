@@ -1,0 +1,465 @@
+
+
+################################################
+# -2. define some custom functions
+################################################
+
+
+random_sample_from_sumstats <- function(sumstats_data, sample_size) {
+
+	collector <- data.frame(matrix(ncol = ncol(sumstats_data), nrow = 0))
+	colnames(collector) <- colnames(sumstats_data)
+
+	for ( level in levels(as.factor(sumstats_data$model)) ) {
+		print(level)
+		a <- sumstats_data[sumstats_data$model == level, ]
+		randsample <- a[ sample(1:nrow(a), sample_size, replace=FALSE), ]
+		collector <- rbind(collector, randsample)
+		}
+	return(collector)
+	
+	}
+
+
+drop_fixed_and_NA_columns <- function(mydataframe) {
+
+	for ( i in colnames(mydataframe) ) {
+	
+		if ( is.na( mydataframe[, i] ) ) {
+			mydataframe <- mydataframe[ , !colnames(mydataframe)==i]
+		} else {
+			myvar <- var( mydataframe[, i] )
+			if (myvar == 0) {
+				mydataframe <- mydataframe[ , !colnames(mydataframe)==i]
+			}
+		}
+	}
+	return(mydataframe)
+}
+
+factors_to_characters <- function(mydf) {
+	mydf[sapply(mydf, is.factor)] <- lapply(mydf[sapply(mydf, is.factor)], as.character)
+	return(mydf)
+}
+
+
+find_near_zero_variance_columns <- function(mydataframe) {
+	
+	# because lda.default() refuses to work with data that has < 1e-07 variance (tol)
+	# but lda are useful predictors and we want them
+	
+	bad_columns = c()
+	for ( i in seq(1, ncol(mydataframe) ) ) {
+		if ( var( mydataframe[,i] ) < 1e-07 ) {
+			bad_columns <- append(bad_columns, i)
+			}
+		}
+#	print(bad_columns)
+	return(bad_columns)
+	}
+
+find_na_rows <- function(mydataframe) {
+	
+	# because some rows of summary statistics contain NA and need to be dropped, we need to drop the corresponding row from the parameters data.frame as well:
+	
+	bad_rows = row.names(mydataframe[complete.cases(mydataframe) == FALSE,])
+
+	return(bad_rows)
+	}
+
+
+make_and_plot_LDA <- function(all_sumstats_nomodel, modelinex, obs_real, outfile_prefix) {
+
+## requires libraries MASS , ggplot
+
+# 1. scale and center the summary statistics, keep record of the parameters to transform also the observed stats:
+
+sumstat_column_means <- apply(all_sumstats_nomodel,2,mean) # to dimension 2 = columns
+sumstat_column_sds <- apply(all_sumstats_nomodel,2,sd)
+
+scaled_and_centered_sumstats <- as.data.frame(matrix(0, ncol = ncol(all_sumstats_nomodel), nrow = nrow(all_sumstats_nomodel)))
+for ( stat_idx in seq(1, ncol(all_sumstats_nomodel) )) {
+	a <- all_sumstats_nomodel[,stat_idx] - sumstat_column_means[stat_idx]
+	a <- a / sumstat_column_sds[stat_idx]
+	scaled_and_centered_sumstats[,stat_idx] <- a
+	}
+colnames(scaled_and_centered_sumstats) <- colnames(all_sumstats_nomodel)
+
+obs.scaled_and_centered <- as.data.frame(matrix(0, ncol = ncol(obs_real), nrow = nrow(obs_real)))
+for ( stat_idx in seq(1, ncol(obs_real) )) {
+	a <- obs_real[,stat_idx] - sumstat_column_means[stat_idx]
+	a <- a / sumstat_column_sds[stat_idx]
+	obs.scaled_and_centered[,stat_idx] <- a
+	}
+colnames(obs.scaled_and_centered) <- colnames(obs_real)
+
+# 2. now do the LDA, project sumstats and observed into LDA space, and plot first two axes:
+
+modelindex <- as.factor(modelindex)
+
+my_lda <- lda(scaled_and_centered_sumstats, modelindex, tol = 1.0e-12)
+
+lda_pred <- predict(object = my_lda, newdata = scaled_and_centered_sumstats)
+obs_projected_into_LDA_space <- predict(object = my_lda, newdata = obs.scaled_and_centered) 
+
+print(obs_projected_into_LDA_space)
+
+dataset = data.frame(model = modelindex, lda = lda_pred$x)
+       
+LD1.2 <- ggplot(dataset) + geom_point(aes(lda.LD1, lda.LD2, colour = model), size = 1.0, alpha = 0.3) + 
+			geom_point(x=obs_projected_into_LDA_space$x[,1], y=obs_projected_into_LDA_space$x[,2], shape=3, size=3.0, colour="black") +
+			scale_colour_manual(values=cbPalette)
+
+pdf( sprintf("%s.LDA.pdf", outfile_prefix) )
+print(LD1.2)
+dev.off()
+
+}
+
+# http://www.cookbook-r.com/Graphs/Colors_%28ggplot2%29/#a-colorblind-friendly-palette
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+#  To use for fills, add
+#   scale_fill_manual(values=cbPalette)
+# 
+# # To use for line and point colors, add
+#   scale_colour_manual(values=cbPalette)
+
+
+summaryfunc <- function(x) {
+	
+	return( c(mean(x),min(x),quantile(x, c(0.005,0.025,0.05,0.1,0.25,0.5,0.75,0.9,0.95,0.975,0.995)),max(x)) )
+	
+}
+
+
+################################################
+# -1. load dependencies
+################################################
+
+library(abc)
+library(abcrf)
+library(ggplot2)
+library(data.table)
+library(MASS)
+
+args = commandArgs(trailingOnly=TRUE)
+sim.ABCstat.file <- "ABCstat.onepop_2-phase.txt"
+sim.params.file <- "parameters.onepop_2-phase.txt"
+obs.ABCstat.file <- "../obs_data/variants_Solanum_august1.vcf.gz.4xdegen_and_chrom_as_gene.vcf.ABCstat.txt"
+outf_prefix <- "fit.onepop_2-phase" # e.g. "Brunei_hemsleyana_mirabilis.DGF"
+
+################################################
+# 0. import observed statistics, simulated statistics, simulation parameters
+################################################
+
+#get_idx_of_nonfinite <- function(x) {row.names(!is.finite(x))}
+
+# get_idx_of_nonfinite
+#which(!is.finite(DT[,23]))
+
+raw_summary_statistics <- fread(sim.ABCstat.file, data.table = FALSE, na.strings="na")
+
+#drop <- c("p1_TajD_avg","p1_TajD_std","p2_TajD_avg","p2_TajD_std")
+#df = raw_summary_statistics[,!(names(raw_summary_statistics) %in% drop)]
+#raw_summary_statistics <- df
+
+bad_rows <- find_na_rows(raw_summary_statistics)
+
+raw_summary_statistics = raw_summary_statistics[ !(row.names(raw_summary_statistics) %in% bad_rows), ]
+
+
+
+# drop near zero-variance stats:
+tb_dropped_columns <- find_near_zero_variance_columns(raw_summary_statistics)
+if ( ! is.null(tb_dropped_columns) ) {
+raw_summary_statistics <- subset(raw_summary_statistics, select = -tb_dropped_columns)
+}
+
+raw_summary_statistics.obs <- fread(obs.ABCstat.file, data.table = FALSE, na.strings="na")
+# drop the same near zero-variance stats:
+if ( ! is.null(tb_dropped_columns) ) {
+raw_summary_statistics.obs <- subset(raw_summary_statistics.obs, select = -tb_dropped_columns)
+}
+
+#df = raw_summary_statistics.obs[,!(names(raw_summary_statistics.obs) %in% drop)]
+#raw_summary_statistics.obs <- df
+
+
+model_parameters <- fread(sim.params.file, data.table = FALSE, na.strings="NA")
+
+clean_model_parameters <- drop_fixed_and_NA_columns(model_parameters)
+clean_model_parameters <- subset(model_parameters, select = -c(N1_ancient, T_N1_ancient) ) # these are redundant and non-relevant parameters
+
+
+
+# drop also the bad rows (i.e. paramters whose summary stats contained NA values)
+clean_model_parameters = clean_model_parameters[ !(row.names(clean_model_parameters) %in% bad_rows), ]
+
+sapply(clean_model_parameters, class)
+sapply(raw_summary_statistics.obs, class)
+sapply(raw_summary_statistics, class)
+
+##
+
+################################################
+# 0-1. check model overlap simplisitc, visually with histograms for each sumstat
+################################################
+print("doing histograms")
+model <- "X"
+modelindex <- rep("X", nrow(raw_summary_statistics))
+
+pdf( sprintf("%s.sumstat_histograms.pdf", outf_prefix) )
+
+for (stat in colnames(raw_summary_statistics) ) {
+
+mydat <- data.frame(modelindex, raw_summary_statistics[[stat]] )
+
+histplot <- ggplot(mydat, aes( x = mydat[,2] , fill = model )) + geom_histogram(alpha = 0.6, aes(y = ..density..), position = 'identity') + xlab( stat ) + geom_vline(xintercept = raw_summary_statistics.obs[[stat]]) + scale_fill_manual(values=cbPalette)
+
+plot(histplot)
+
+} 
+dev.off()
+
+################################################
+# 0-2. check model overlap simplistic, visually with a PCA
+################################################
+print("doing PCA")
+# plot 6 first axes of PCA on the sumstats!
+
+#subsampled_nomodel <- random_sample_from_sumstats(raw_summary_statistics, 9000)
+subsampled_nomodel <- raw_summary_statistics
+subsampled_modelindex <- rep("X", nrow(raw_summary_statistics))
+
+all_sumstats_PCA <- prcomp(subsampled_nomodel, center=TRUE, scale.=TRUE)
+
+scores <- data.frame(subsampled_modelindex, all_sumstats_PCA$x[,1:6])
+
+obs_scores <- data.frame(predict(all_sumstats_PCA,raw_summary_statistics.obs))
+
+pc1.2 <- qplot(x=PC1, y=PC2, data=scores, colour=factor(subsampled_modelindex), size = I(1.0), alpha = 0.2 ) + scale_colour_manual(values=cbPalette) + geom_point(data = obs_scores, 
+             mapping = aes(x = PC1, y = PC2, colour = "black"))
+pc3.4 <- qplot(x=PC3, y=PC4, data=scores, colour=factor(subsampled_modelindex), size = I(1.0), alpha = 0.2  ) + scale_colour_manual(values=cbPalette) + geom_point(data = obs_scores, 
+             mapping = aes(x = PC3, y = PC4, colour = "black"))
+pc5.6 <- qplot(x=PC5, y=PC6, data=scores, colour=factor(subsampled_modelindex), size = I(1.0), alpha = 0.2  ) + scale_colour_manual(values=cbPalette) + geom_point(data = obs_scores, 
+             mapping = aes(x = PC5, y = PC6, colour = "black"))
+
+pdf( sprintf("%s.sumstat_PCA.pdf", outf_prefix)  )
+pc1.2
+pc3.4
+pc5.6
+dev.off()
+
+
+################################################
+# 1. estimate parameters using ALL summary statistics, ABC Neural-Net & rejection
+################################################
+
+# complaines about "too many weights" if sizenet = 10; so gor for default (sizenet = 5). Solution: set MaxNWts higher!
+pe <- abc(raw_summary_statistics.obs , clean_model_parameters, raw_summary_statistics, tol = .01 , method = "neuralnet", hcorr = TRUE, transf="none", numnet = 200, sizenet = 10, MaxNWts = 10000)
+#pe <- abc(raw_summary_statistics.obs , clean_model_parameters, raw_summary_statistics, tol = .01 , method = "neuralnet", hcorr = TRUE, transf="log", numnet = 5, sizenet = 5, MaxNWts = 10000)
+#pe <- abc(raw_summary_statistics.obs , clean_model_parameters, raw_summary_statistics, tol = .01 , method = "rejection")
+
+mysummary <- summary(pe)
+
+write.table(mysummary, file = paste(outf_prefix, ".PE_tol0.01_logtransf_neuralnet_n200.txt", sep = ""), append = FALSE, quote = FALSE, sep = "\t",
+            eol = "\n", na = "NA", dec = ".", row.names = TRUE,
+            col.names = TRUE)
+
+mysummary.unadj <- as.data.frame(apply(pe$unadj.values, 2, summaryfunc))
+rownames(mysummary.unadj) <- c("mean","min","Q_0.5%","Q_2.5%","Q_5%","Q_10%","Q_25%","Q_50%","Q_75%","Q_90%","Q_95%","Q_97.5%","Q_99.5%","max")
+
+write.table(mysummary.unadj, file = paste(outf_prefix, ".PE_tol0.01.rejection.txt", sep = ""), append = FALSE, quote = FALSE, sep = "\t",
+            eol = "\n", na = "NA", dec = ".", row.names = TRUE,
+            col.names = TRUE)
+
+
+
+###
+
+
+# plot distributions
+posteriors_rej <- pe$unadj.values
+posteriors_rej <- as.data.frame( cbind("posterior_rej", posteriors_rej) )
+colnames(posteriors_rej)[1] <- "distribution"
+
+posteriors_othermethod <- pe$adj.values
+posteriors_othermethod <- as.data.frame( cbind("posterior_neuralnet", posteriors_othermethod) )
+colnames(posteriors_othermethod)[1] <- "distribution"
+
+priors <- clean_model_parameters[ sample(1:nrow( clean_model_parameters ), nrow(  pe$unadj.values ) , replace=FALSE), ]
+priors <- cbind("prior", priors)
+colnames(priors)[1] <- "distribution"
+
+posteriors_rej <- factors_to_characters(posteriors_rej)
+posteriors_othermethod  <- factors_to_characters(posteriors_othermethod )
+priors <- factors_to_characters(priors)
+
+prior_posterior_df <- rbind(posteriors_rej, posteriors_othermethod, priors)
+#prior_posterior_df <- rbind(posteriors_rej, priors)
+prior_posterior_df <- data.frame(prior_posterior_df, row.names=NULL)
+
+prior_posterior_df$distribution <- as.factor(prior_posterior_df$distribution)
+
+distribution_index <- prior_posterior_df[1]
+prior_posterior_df <- prior_posterior_df[ -1 ]
+
+
+pdf(paste(outf_prefix, ".histograms_posteriors_vs_priors.pdf", sep = ""))
+
+for (stat in colnames(prior_posterior_df) ) {
+
+mydat <- data.frame(distribution_index, as.numeric( prior_posterior_df[[stat]] ) )
+
+histplot <- ggplot(mydat, aes( x = mydat[,2] , fill = distribution )) + geom_histogram(alpha = 0.6, aes(y = ..density..), position = 'identity', binwidth = (max(mydat[,2])-min(mydat[,2]))/40) + xlab( stat )
+
+plot(histplot)
+
+} 
+dev.off()
+
+####### get rejection posteriors for a few more tolerance rates:###
+
+pe.01 <- abc(raw_summary_statistics.obs , clean_model_parameters, raw_summary_statistics, tol = .01 , method = "rejection")
+pe.005 <- abc(raw_summary_statistics.obs , clean_model_parameters, raw_summary_statistics, tol = .005 , method = "rejection")
+pe.001 <- abc(raw_summary_statistics.obs , clean_model_parameters, raw_summary_statistics, tol = .001 , method = "rejection")
+
+mysummary.unadj <- as.data.frame(apply(pe.01$unadj.values, 2, summaryfunc))
+rownames(mysummary.unadj) <- c("mean","min","Q_0.5%","Q_2.5%","Q_5%","Q_10%","Q_25%","Q_50%","Q_75%","Q_90%","Q_95%","Q_97.5%","Q_99.5%","max")
+
+write.table(mysummary.unadj, file = paste(outf_prefix, ".PE_tol0.01.rejection.txt", sep = ""), append = FALSE, quote = FALSE, sep = "\t",
+            eol = "\n", na = "NA", dec = ".", row.names = TRUE,
+            col.names = TRUE)
+
+mysummary.unadj <- as.data.frame(apply(pe.005$unadj.values, 2, summaryfunc))
+rownames(mysummary.unadj) <- c("mean","min","Q_0.5%","Q_2.5%","Q_5%","Q_10%","Q_25%","Q_50%","Q_75%","Q_90%","Q_95%","Q_97.5%","Q_99.5%","max")
+
+write.table(mysummary.unadj, file = paste(outf_prefix, ".PE_tol0.005.rejection.txt", sep = ""), append = FALSE, quote = FALSE, sep = "\t",
+            eol = "\n", na = "NA", dec = ".", row.names = TRUE,
+            col.names = TRUE)
+
+mysummary.unadj <- as.data.frame(apply(pe.001$unadj.values, 2, summaryfunc))
+rownames(mysummary.unadj) <- c("mean","min","Q_0.5%","Q_2.5%","Q_5%","Q_10%","Q_25%","Q_50%","Q_75%","Q_90%","Q_95%","Q_97.5%","Q_99.5%","max")
+
+write.table(mysummary.unadj, file = paste(outf_prefix, ".PE_tol0.001.rejection.txt", sep = ""), append = FALSE, quote = FALSE, sep = "\t",
+            eol = "\n", na = "NA", dec = ".", row.names = TRUE,
+            col.names = TRUE)
+
+
+# plot priors + rejection posteriors of different tolerances:
+posteriors_rej.01 <- pe.01$unadj.values
+posteriors_rej.01 <- as.data.frame( cbind("rej_tol0.01", posteriors_rej.01) )
+colnames(posteriors_rej.01)[1] <- "distribution"
+
+posteriors_rej.005 <- pe.005$unadj.values
+posteriors_rej.005 <- as.data.frame( cbind("rej_tol0.005", posteriors_rej.005) )
+colnames(posteriors_rej.005)[1] <- "distribution"
+
+posteriors_rej.001 <- pe.001$unadj.values
+posteriors_rej.001 <- as.data.frame( cbind("rej_tol0.001", posteriors_rej.001) )
+colnames(posteriors_rej.001)[1] <- "distribution"
+
+priors <- clean_model_parameters[ sample(1:nrow( clean_model_parameters ), nrow(  pe.01$unadj.values ) , replace=FALSE), ]
+priors <- cbind("prior", priors)
+colnames(priors)[1] <- "distribution"
+
+posteriors_rej.01 <- factors_to_characters(posteriors_rej.01)
+posteriors_rej.005 <- factors_to_characters(posteriors_rej.005)
+posteriors_rej.001 <- factors_to_characters(posteriors_rej.001)
+priors <- factors_to_characters(priors)
+
+prior_posterior_df <- rbind(posteriors_rej.01, posteriors_rej.005, posteriors_rej.001, priors)
+#prior_posterior_df <- rbind(posteriors_rej, priors)
+prior_posterior_df <- data.frame(prior_posterior_df, row.names=NULL)
+
+prior_posterior_df$distribution <- as.factor(prior_posterior_df$distribution)
+
+distribution_index <- prior_posterior_df[1]
+prior_posterior_df <- prior_posterior_df[ -1 ]
+
+
+pdf(paste(outf_prefix, ".histograms_various_rejection_posteriors_vs_priors.pdf", sep = ""))
+
+for (stat in colnames(prior_posterior_df) ) {
+
+mydat <- data.frame(distribution_index, as.numeric( prior_posterior_df[[stat]] ) )
+
+histplot <- ggplot(mydat, aes( x = mydat[,2] , fill = distribution )) + geom_histogram(alpha = 0.6, aes(y = ..density..), position = 'identity', binwidth = (max(mydat[,2])-min(mydat[,2]))/40) + xlab( stat )
+
+plot(histplot)
+
+} 
+dev.off()
+
+###
+
+################################################
+# 2. estimate parameters using ALL summary statistics: ABCRF Random Forest
+################################################
+
+
+## ODOF = One Dimension, One Forest = separate RF regression for each parameter, NOT jointly estimated!
+
+collector <- c()
+
+pdf(paste(outf_prefix, ".regression_RF.pdf", sep = ""))
+
+for (i in seq(1, ncol(clean_model_parameters))) {
+print(names(clean_model_parameters)[i])
+
+fu <- raw_summary_statistics
+
+names(fu) <- paste("P", names(fu), sep=".")
+
+data <- cbind(clean_model_parameters[,i], fu)
+names(data) <- c("myparam", names(fu))
+
+my_model <- regAbcrf(formula = myparam~., data = data, ntree = 500, min.node.size = 5, ncores = 12)
+
+errorOOB <- err.regAbcrf(object = my_model, training = data,paral = TRUE, ncores = 12)
+my_errorOOB = errorOOB[length(errorOOB)]
+title( main = names(clean_model_parameters)[i] ) 
+
+plot(x = my_model, n.var = 25)
+title( main = names(clean_model_parameters)[i] ) 
+
+colnames(raw_summary_statistics.obs) <- colnames(data[ ,-1])
+# Prediction is complete by
+pred <- predict(object = my_model, obs = raw_summary_statistics.obs,
+training = data, quantiles = c(0.025,0.975),
+paral = TRUE, ncores = 12)
+
+par(col.main="#00000000") # Switch title color to transparent.
+par(col.lab="#00000000") # Switch lable color to transparent.
+densityPlot(object = my_model, obs = raw_summary_statistics.obs, training = data, paral = TRUE, ncores = 12)
+par(col.main='black') # Switch title color back to black.
+par(col.lab='black') # Switch lable color back to black.
+title( main = names(clean_model_parameters)[i] , xlab = "value", ylab = "density") 
+legend("topright", legend=c("prior", "posterior"),
+       col=c("grey", "black"), lty=1, cex=0.8)
+
+a <- c(pred$expectation, pred$med, pred$variance, pred$variance.cdf, pred$quantiles[1], pred$quantiles[2], my_errorOOB)
+collector <- cbind(collector, a)
+}
+
+dev.off()
+
+colnames(collector) <- colnames(clean_model_parameters)
+rownames(collector) <- c("expectation",  "median","variance","variance.cdf","quantile= 0.025","quantile= 0.975", "errorOOB")
+
+
+write.table(collector, file = paste(outf_prefix, ".regression_RF.txt", sep = ""), append = FALSE, quote = FALSE, sep = "\t",
+            eol = "\n", na = "NA", dec = ".", row.names = TRUE,
+            col.names = TRUE)
+
+
+#########
+
+
+
+###
+
+
+
+
+
