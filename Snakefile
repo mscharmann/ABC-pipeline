@@ -113,13 +113,14 @@ rule convert_inputs:
 		popmap = config["popmap"],
 		contig_lengths_file = config["contig_lengths_file"],
 		mu = config["mu"],
-		rho = config["rho"]
+		rho = config["rho"],
+		pseudo_haploid_pops = config["pseudo_haploid_pops"]
 	conda:
 		"abc_sims_numpy_scipy.yml"
 	threads: 2
 	shell:
 		"""
-		bash ./scripts/convert_inputs.sh {params.vcf} {params.popmap} {params.contig_lengths_file} {params.mu} {params.rho}
+		bash ./scripts/convert_inputs.sh {params.vcf} {params.popmap} {params.contig_lengths_file} {params.mu} {params.rho} {params.pseudo_haploid_pops}
 		"""
 
 

@@ -1,7 +1,8 @@
 vcf: obs_data/example_six_samples_four_contigs.vcf
-popmap: obs_data/popmap_example_1pop.txt
+popmap: obs_data/popmap_example_2pop.txt
 contig_lengths_file: obs_data/contig_length_rec_vs_mut.SNPless_contigs.txt
 relative_Ne_distribution: obs_data/example_six_samples_four_contigs.vcf.pi_distr_mean_1.txt
+pseudo_haploid_pops: pop_1 ## comma-separated list of populations from which to sample not both chroms per locus but only one random chrom! leave empty if all diploid.
 
 mu: 7.5e-9
 rho: 7.5e-9
@@ -13,8 +14,8 @@ scenarios:
 #   twpop.CM: argfiles/2pop/argfile.CM.twophase_free.twophase_free.txt
 #   twpop.OSC: argfiles/2pop/argfile.OSC.twophase_free.twophase_free.txt
 #   twpop.PSC: argfiles/2pop/argfile.PSC.twophase_free.twophase_free.txt
-#   twpop.SI: argfiles/2pop/argfile.SI.twophase_free.twophase_free.txt
-   singlepop: argfiles/1pop/argfile.simple_pop.txt
+    twpop.SI: argfiles/2pop/argfile.SI.twophase_free.twophase_free.txt
+#   singlepop: argfiles/1pop/argfile.simple_pop.txt
 
     
 #threepop_topology:
