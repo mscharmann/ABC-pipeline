@@ -95,14 +95,22 @@ def read_genepop (genepopfile):
 
 	with open(genepopfile, "r") as INFILE:
 		header = INFILE.readline() # remove first line
+		hps = header.split(", ")
+		pops_named_ordered = []
+		for i in hps:
+			if "pop_" in i:
+				p = i.split("=")[1].strip()
+				pops_named_ordered.append(p)
+		print (pops_named_ordered)
+		
 		loci_ordered = INFILE.readline().strip("\n").split(",")
 		uberdict = {}
 		popcount = 0
 		for line in INFILE:
 			items = line.strip("\n").split("\t")
 			if "pop" in items:
+				population = pops_named_ordered[ popcount ]
 				popcount += 1
-				population = "pop_{0}".format(popcount)
 				continue
 			sample = "".join(items[:1]).strip(",")
 			try:
@@ -175,7 +183,7 @@ def read_genepop (genepopfile):
  
 	print ("warning: {0} genotypes for contigs where sites within them had inconsistent number of missing data where replaced with missing data, because downstream cannot deal with this!".format(replace_count ) )
 		
-	return genotypes, loci_ordered
+	return genotypes, loci_ordered, pops_named_ordered
 
 def genotype_stats(genotypes, loci_ordered, pseudo_haploid_pops):
 	
@@ -470,7 +478,7 @@ def main(argv=None):
 	ms_outfile = "{0}.ms.txt".format(genepopfile)
 	bpoutfile = "{0}.bpfile.txt".format(genepopfile)
 	
-	(genotypes, loci_ordered) = read_genepop(genepopfile)
+	(genotypes, loci_ordered, pop_order) = read_genepop(genepopfile)
 	# pop_x is the order of appearance in the genepopfile == consistent with genepop header!
  	
  	#print (loci_ordered)
@@ -498,7 +506,6 @@ def main(argv=None):
 	
 	print ("effective number of contigs from contig_lengths file but then dropped here:	" + str( len( [x for x in bad_loci if x in set(contig_len_dict.keys())] ) ) )
 	
-	pop_order = sorted( genotypes.keys() ) ## will sort numerically
 	print (pop_order)
 	
 	# all these functions produce outputs where the order of populations is the same as in the genepop input
