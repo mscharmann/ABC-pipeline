@@ -22,8 +22,9 @@ def choose_sim_script (popmapfile):
 	popv = []
 	with open(popmapfile, "r") as I:
 		for line in I:
-			fields = line.strip("\n").split()
-			popv.append(fields[1])
+			if len(line) > 1:
+				fields = line.strip("\n").split()
+				popv.append(fields[1])
 	
 	npop = len(set(popv))
 	
