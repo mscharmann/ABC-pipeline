@@ -31,7 +31,7 @@ def extant_file(x):
 	"""
 	
 	if not os.path.exists(x):
-		print "Error: {0} does not exist".format( x )
+		print ("Error: {0} does not exist".format( x ))
 		exit()
 	x = str(x)
 	return x
@@ -40,7 +40,7 @@ def extant_file(x):
 def linebreak_check(x):
 
 	if "\r" in open(x, "rb").readline():
-		print "Error: classic mac (CR) or DOS (CRLF) linebreaks in {0}".format(x)
+		print ("Error: classic mac (CR) or DOS (CRLF) linebreaks in {0}".format(x))
 		exit()
 
 ######
@@ -55,10 +55,7 @@ def get_commandline_arguments ():
 	parser.add_argument("--popfile", required=True, type=extant_file,
 		help="name/path of population file; output pop order will follow pop order in this file!", metavar="FILE")
 
-
-# 	parser.add_argument("--format", required=True, help="the format of the vcf: stacks or freebayes")
-# 	
- 	args = parser.parse_args()
+	args = parser.parse_args()
 		
 	# finish
 	return args
@@ -110,7 +107,7 @@ def parse_vcf(vcf_file):
 
 	samples_vcf_idx = {}
 	for sample in samples:
-		print sample
+		print (sample)
 		vcf_idx = header_line.index(sample)
 		samples_vcf_idx[sample] = vcf_idx
 
@@ -184,7 +181,7 @@ def make_genepop (genotypes_dict, loci_list, popdict, outfilename, pop_order_in_
 
 	for idx, p in enumerate(pop_order_in_outfile):
 		headerline += ", pop_" + str(idx+1) + " = " + p
-	print headerline
+	print (headerline)
 	lociline = ",".join(loci_list)
 	
 	outlines = [headerline, lociline]
@@ -194,7 +191,7 @@ def make_genepop (genotypes_dict, loci_list, popdict, outfilename, pop_order_in_
 			try:
 				outlines.append( sample + ",\t" + "\t".join( genotypes_dict[sample] ) )
 			except KeyError:
-				print "Warning: {0} on popmap but not found in vcf data".format(sample)
+				print ("Warning: {0} on popmap but not found in vcf data".format(sample))
 				continue
 	
 	with open(outfilename, "w") as OUTFILE:
@@ -212,17 +209,17 @@ pop_order_in_outfile = pop_order
 
 for x in pop_order_in_outfile:
 	if x not in popdict.keys():
-		print x, " not in the popmap file"
+		print (x, " not in the popmap file")
 		exit()
 
 #print popdict
 genotypes_dict, loci_list = parse_vcf(args.vcf)
-print "sites:	", len(loci_list)
+print ("sites:	", len(loci_list))
 
 outfilename = args.vcf + ".genepop.txt"
 
 make_genepop (genotypes_dict, loci_list, popdict, outfilename, pop_order_in_outfile)
 	
-print "Done!"
+print ("Done!")
 	
 
